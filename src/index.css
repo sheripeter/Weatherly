@@ -1,27 +1,25 @@
-
-:root {
-  font-family: Arial, sans-serif;
-  color: #173b63;
-  background: #eaf5ff;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
 * {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
 }
 
 body {
-  margin: 0;
-  min-width: 320px;
+  font-family: "Inter", Arial, sans-serif;
+  background: #080f1e;
+  color: #f8fafc;
   min-height: 100vh;
-  color: #173b63;
-  background: #eaf5ff;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
 }
 
 #root {
-  width: 100%;
   min-height: 100vh;
-  margin: 0;
-  padding: 0;
 }

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Forecast from './components/Forecast';
 
-// Convert weather codes into readable descriptions
 function getWeatherDescription(code) {
   const descriptions = {
     0: 'Clear sky ☀️',
@@ -32,47 +32,39 @@ function getWeatherDescription(code) {
 }
 
 function App() {
-  // React states
-  const [city, setCity] = useState('');
+  const [city, setCity] = useState(
+    () => localStorage.getItem('lastCity') || ''
+  );
+
   const [weather, setWeather] = useState(null);
   const [forecast, setForecast] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [recentCities, setRecentCities] = useState(() => {
-  const savedCities = localStorage.getItem('recentCities');
 
-  return savedCities ? JSON.parse(savedCities) : [];
+  const [recentCities, setRecentCities] = useState(() => {
+    const savedCities = localStorage.getItem('recentCities');
+    return savedCities ? JSON.parse(savedCities) : [];
   });
 
-  
-useEffect(() => {
-  localStorage.setItem(
-    'recentCities',
-    JSON.stringify(recentCities)
-  );
-}, [recentCities]);
-
+  // Save recent searches
   useEffect(() => {
-    if (weather) {
-      document.title = `${weather.city} Weather | Weather App`;
-    } else {
-      document.title = 'Weather App';
-    }
+    localStorage.setItem(
+      'recentCities',
+      JSON.stringify(recentCities)
+    );
+  }, [recentCities]);
+
+  // Update browser tab title
+  useEffect(() => {
+    document.title = weather
+      ? `${weather.city} Weather | Weatherly`
+      : 'Weatherly';
   }, [weather]);
 
-  useEffect(() => {
-  localStorage.setItem(
-    'recentCities',
-    JSON.stringify(recentCities)
-  );
-}, [recentCities]);
-
   // Search for weather
-  async function handleSearch() {
-    if (!city.trim()) {
+  const handleSearch = useCallback(async (searchCity) => {
+    if (!searchCity.trim()) {
       setError('Please enter a city name.');
-      setWeather(null);
-      setForecast([]);
       return;
     }
 
@@ -82,9 +74,8 @@ useEffect(() => {
     setForecast([]);
 
     try {
-      // Step 1: Find city coordinates
       const locationResponse = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.trim())}&count=1&language=en&format=json`
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchCity.trim())}&count=1&language=en&format=json`
       );
 
       if (!locationResponse.ok) {
@@ -98,14 +89,7 @@ useEffect(() => {
       }
 
       const location = locationData.results[0];
-      setRecentCities((previousCities) => [
-        location.name,
-        ...previousCities.filter(
-          (cityName) => cityName !== location.name
-        )
-      ].slice(0, 5));
 
-      // Step 2: Get current weather and five-day forecast
       const weatherResponse = await fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`
       );
@@ -116,7 +100,7 @@ useEffect(() => {
 
       const weatherData = await weatherResponse.json();
 
-      // Step 3: Save current weather
+      // Update weather information
       setWeather({
         city: location.name,
         country: location.country,
@@ -129,7 +113,7 @@ useEffect(() => {
         )
       });
 
-      // Step 4: Save five-day forecast
+      // Update five-day forecast
       setForecast(
         weatherData.daily.time.map((date, index) => ({
           date,
@@ -141,6 +125,19 @@ useEffect(() => {
         }))
       );
 
+      // Save last successful city
+      localStorage.setItem('lastCity', location.name);
+
+      // Update recent search history
+      setRecentCities((previousCities) => [
+        location.name,
+        ...previousCities.filter(
+          (cityName) => cityName !== location.name
+        )
+      ].slice(0, 5));
+
+      setCity(location.name);
+
     } catch (err) {
       setError(err.message);
       setWeather(null);
@@ -148,106 +145,164 @@ useEffect(() => {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  // Restore the last searched city after the component mounts
+  useEffect(() => {
+    const savedCity = localStorage.getItem('lastCity');
+
+    if (!savedCity) return;
+
+    const timer = setTimeout(() => {
+      handleSearch(savedCity);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [handleSearch]);
 
   return (
-    <main className="weather-app">
+    <div className="app">
 
-      <header className="app-header">
-        <h1>Weather App</h1>
-        <p>Check the weather in your city</p>
+      {/* Dashboard Header */}
+      <header className="dashboard-header">
+        <div className="brand">
+          <h1>
+            <span className="brand-icon">☁️</span>
+            Weatherly
+          </h1>
+        </div>
+
+        <form
+          className="search-box"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSearch(city);
+          }}
+        >
+          <input
+            type="text"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="Search any city..."
+          />
+
+          <button type="submit" disabled={loading}>
+            {loading ? 'Searching...' : 'Search'}
+          </button>
+        </form>
       </header>
 
-      {/* City search */}
-      <section className="search-section">
-        <input
-          type="text"
-          placeholder="Enter city name..."
-          value={city}
-          onChange={(event) => setCity(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              handleSearch();
-            }
-          }}
-        />
+      <main className="dashboard-content">
 
-        <button onClick={handleSearch} disabled={loading}>
-          {loading ? 'Loading...' : 'Search'}
-        </button>
-      </section>
-     {recentCities.length > 0 && (
-      <section className="recent-section">
-        <div className="recent-header">
-          <h3>Recently Searched</h3>
+        {/* Recent Searches */}
+        {recentCities.length > 0 && (
+          <section className="recent-section">
+            <div className="recent-header">
+              <h3>Recently Searched</h3>
 
-          <button
-            className="clear-button"
-            onClick={() => setRecentCities([])}
-          >
-            Clear History
-          </button>
-        </div>
+              <button
+                className="clear-button"
+                onClick={() => setRecentCities([])}
+              >
+                Clear History
+              </button>
+            </div>
 
-        <div className="recent-list">
-          {recentCities.map((cityName) => (
-            <button
-              key={cityName}
-              onClick={() => setCity(cityName)}
-            >
-              {cityName}
-            </button>
-          ))}
-        </div>
-      </section>
-    )}
-
-      {/* Weather information */}
-      <section className="weather-card">
-
-        {loading && (
-          <p>Getting weather information...</p>
+            <div className="recent-list">
+              {recentCities.map((cityName) => (
+                <button
+                  key={cityName}
+                  onClick={() => setCity(cityName)}
+                >
+                  {cityName}
+                </button>
+              ))}
+            </div>
+          </section>
         )}
 
+        {/* Loading */}
+        {loading && (
+          <p className="loading-message">
+            Getting weather information...
+          </p>
+        )}
+
+        {/* Error */}
         {error && (
           <p className="error">{error}</p>
         )}
 
-        {weather && (
-          <>
-            <h2>
-              {weather.city}, {weather.country}
-            </h2>
-
-            <h1>{weather.temperature}°C</h1>
-
-            <h3 className="weather-description">
-              {weather.description}
-            </h3>
-
-            <p>Feels like: {weather.feelsLike}°C</p>
-            <p>Humidity: {weather.humidity}%</p>
-            <p>Wind speed: {weather.windSpeed} km/h</p>
-
-            {/* Five-day forecast */}
-            <Forecast forecast={forecast} />
-          </>
-        )}
-
+        {/* Welcome Message */}
         {!loading && !error && !weather && (
-          <>
-            <h2>Welcome!</h2>
-            <p>Search for a city to get started.</p>
-          </>
+          <section className="current-weather-card">
+            <h2>Welcome to Weatherly!</h2>
+            <p>Search for a city to explore its weather.</p>
+          </section>
         )}
 
-      </section>
+        {/* Current Weather Card */}
+        {weather && (
+          <section className="current-weather-card">
 
-      <footer>
+            <div className="weather-location">
+              <div>
+                <p className="weather-label">CURRENT WEATHER</p>
+
+                <h2>
+                  {weather.city}, {weather.country}
+                </h2>
+
+                <p className="weather-description">
+                  {weather.description}
+                </p>
+              </div>
+
+              <span className="weather-emoji">🌤️</span>
+            </div>
+
+            <div className="temperature">
+              {Math.round(weather.temperature)}°
+            </div>
+
+            {/* Weather Metrics */}
+            <section className="weather-metrics">
+
+              <div className="metric-card">
+                <span>🌡️</span>
+                <p>Feels Like</p>
+                <h3>{Math.round(weather.feelsLike)}°C</h3>
+              </div>
+
+              <div className="metric-card">
+                <span>💧</span>
+                <p>Humidity</p>
+                <h3>{weather.humidity}%</h3>
+              </div>
+
+              <div className="metric-card">
+                <span>💨</span>
+                <p>Wind Speed</p>
+                <h3>{weather.windSpeed} km/h</h3>
+              </div>
+
+            </section>
+          </section>
+        )}
+
+        {/* Five-Day Forecast */}
+        {weather && (
+          <Forecast forecast={forecast} />
+        )}
+
+      </main>
+
+      {/* Footer */}
+      <footer className="app-footer">
         Weather data provided by Open-Meteo
       </footer>
 
-    </main>
+    </div>
   );
 }
 

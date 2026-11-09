@@ -1,31 +1,63 @@
-function Forecast({ forecast }) {
-  return (
-    <div className="forecast-section">
-      <h3>5-Day Forecast</h3>
 
-      <div className="forecast-list">
-        {forecast.map((day) => (
-          <div className="forecast-item" key={day.date}>
-            <p>
+function Forecast({ forecast }) {
+  if (!forecast || forecast.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="forecast-section">
+      <div className="forecast-heading">
+        <div>
+          <p className="forecast-label">WEATHER OUTLOOK</p>
+          <h2>5-Day Forecast</h2>
+        </div>
+      </div>
+
+      <div className="forecast-grid">
+        {forecast.map((day, index) => (
+          <article className="forecast-card" key={day.date}>
+            <p className="forecast-day">
+              {index === 0
+                ? 'Today'
+                : new Date(`${day.date}T00:00:00`).toLocaleDateString(
+                    'en-IN',
+                    { weekday: 'short' }
+                  )}
+            </p>
+
+            <p className="forecast-date">
               {new Date(`${day.date}T00:00:00`).toLocaleDateString(
                 'en-IN',
-                {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short'
-                }
+                { day: 'numeric', month: 'short' }
               )}
             </p>
 
-            <p>{day.description}</p>
+            <div className="forecast-icon">
+              {day.description.includes('Rain') ||
+              day.description.includes('drizzle')
+                ? '🌧️'
+                : day.description.includes('cloud') ||
+                  day.description.includes('Overcast')
+                ? '☁️'
+                : day.description.includes('snow')
+                ? '❄️'
+                : day.description.includes('Thunderstorm')
+                ? '⛈️'
+                : '☀️'}
+            </div>
 
-            <strong>
-              {day.max}°C / {day.min}°C
-            </strong>
-          </div>
+            <p className="forecast-description">
+              {day.description}
+            </p>
+
+            <div className="forecast-temperatures">
+              <strong>{Math.round(day.max)}°</strong>
+              <span>{Math.round(day.min)}°</span>
+            </div>
+          </article>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
